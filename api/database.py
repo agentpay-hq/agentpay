@@ -1,0 +1,155 @@
+import os
+import asyncpg
+
+DATABASE_URL = os.getenv(
+    "DATABASE_URL", "postgresql://agentpay:localdev@localhost:5432/agentpay"
+)
+
+_pool: asyncpg.Pool | None = None
+
+
+async def get_pool() -> asyncpg.Pool:
+    global _pool
+    if _pool is None:
+        _pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=10)
+    return _pool
+
+
+async def close_pool() -> None:
+    global _pool
+    if _pool is not None:
+        await _pool.close()
+        _pool = None
+
+
+async def create_tables() -> None:
+    pool = await get_pool()
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id          SERIAL PRIMARY KEY,
+            timestamp   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            agent_id    TEXT NOT NULL,
+            amount      NUMERIC NOT NULL,
+            token       TEXT NOT NULL,
+            recipient   TEXT NOT NULL,
+            tx_hash     TEXT,
+            decision    TEXT NOT NULL,
+            reason      TEXT
+        )
+    """)
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS api_keys (
+            id          SERIAL PRIMARY KEY,
+            name        TEXT NOT NULL,
+            owner       TEXT DEFAULT '',
+            key_hash    TEXT NOT NULL UNIQUE,
+            is_active   BOOLEAN DEFAULT true,
+            created_at  TIMESTAMPTZ DEFAULT NOW(),
+            last_used   TIMESTAMPTZ
+        )
+    """)
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS agent_wallets (
+            id              SERIAL PRIMARY KEY,
+            agent_id        TEXT NOT NULL UNIQUE,
+            wallet_address  TEXT NOT NULL,
+            wallet_name     TEXT NOT NULL,
+            network         TEXT NOT NULL DEFAULT 'base-sepolia',
+            created_at      TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS idempotency_keys (
+            key         TEXT PRIMARY KEY,
+            response    JSONB NOT NULL,
+            created_at  TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+
+
+async def get_or_create_agent_wallet(agent_id: str, network: str) -> dict:
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT wallet_address, wallet_name FROM agent_wallets WHERE agent_id = $1",
+        agent_id
+    )
+    if row:
+        return {"address": row["wallet_address"], "name": row["wallet_name"], "existing": True}
+    wallet_name = f"agent-{agent_id[:32]}"
+    return {"address": None, "name": wallet_name, "existing": False}
+
+
+async def save_agent_wallet(agent_id: str, wallet_address: str, wallet_name: str, network: str) -> None:
+    pool = await get_pool()
+    await pool.execute(
+        """
+        INSERT INTO agent_wallets (agent_id, wallet_address, wallet_name, network)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (agent_id) DO NOTHING
+        """,
+        agent_id, wallet_address, wallet_name, network
+    )
+
+
+async def log_payment(
+    *,
+    agent_id: str,
+    amount: float,
+    token: str,
+    recipient: str,
+    tx_hash: str | None,
+    decision: str,
+    reason: str | None,
+) -> None:
+    pool = await get_pool()
+    await pool.execute(
+        """
+        INSERT INTO audit_log (agent_id, amount, token, recipient, tx_hash, decision, reason)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        """,
+        agent_id, amount, token, recipient, tx_hash, decision, reason,
+    )
+
+
+async def get_transactions(limit: int = 50) -> list[dict]:
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """
+        SELECT id, timestamp, agent_id, amount, token, recipient, tx_hash, decision, reason
+        FROM audit_log
+        ORDER BY timestamp DESC
+        LIMIT $1
+        """,
+        limit,
+    )
+    return [dict(r) for r in rows]
+
+
+async def get_idempotency_response(key: str) -> dict | None:
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT response FROM idempotency_keys WHERE key = $1", key
+    )
+    if not row:
+        return None
+    import json
+    val = row["response"]
+    return json.loads(val) if isinstance(val, str) else dict(val)
+
+async def save_idempotency_response(key: str, response: dict) -> None:
+    pool = await get_pool()
+    import json
+    from datetime import datetime
+    # Serialize datetime objects to strings for JSON storage
+    def serialize(obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return str(obj)
+    await pool.execute(
+        """
+        INSERT INTO idempotency_keys (key, response)
+        VALUES ($1, $2::jsonb)
+        ON CONFLICT (key) DO NOTHING
+        """,
+        key, json.dumps(response, default=serialize)
+    )

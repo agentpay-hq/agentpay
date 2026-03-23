@@ -1,0 +1,17 @@
+{
+  "name": "agentpay",
+  "version": "0.1.0",
+  "description": "The payment layer for autonomous AI agents",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["agentpay", "payments", "ai", "agents", "base", "usdc", "stablecoin"],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
