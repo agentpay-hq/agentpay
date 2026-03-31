@@ -16,6 +16,7 @@ function NetworkCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
+    if (window.innerWidth < 768) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -187,11 +188,11 @@ function HeroSection() {
             {txCount > 0 && (<><span className="h-4 w-px bg-blue-500/30" /><span className="font-mono text-lg font-bold text-white"><AnimatedCounter target={txCount} /></span><span className="text-sm text-blue-400">transactions</span></>)}
           </div>
           <h1 className="text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
-            The Payment Layer for{" "}
-            <span className="bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">Autonomous AI Agents</span>
+            AI agents that pay{" "}
+            <span className="bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">without asking permission.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-zinc-400 sm:text-lg">
-            AgentPay lets AI agents send, receive and manage stablecoin payments autonomously — with programmable guardrails, full audit trails, and enterprise-grade security.
+            The payment infrastructure for autonomous AI agents. Programmable guardrails, full audit trails, and real on-chain transactions — built for the agentic economy.
           </p>
           <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <Link href="/docs" className="btn btn-primary w-full px-8 py-3 text-base sm:w-auto">
@@ -406,7 +407,7 @@ function EarlyAccessSection() {
             ) : (
               <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" className="input flex-1 py-3" required />
-                <button type="submit" disabled={loading} className="btn btn-primary shrink-0 px-6 py-3 disabled:opacity-50">{loading ? "Applying..." : "Apply for Access"}</button>
+                <button type="submit" disabled={loading} className="btn btn-primary shrink-0 px-6 py-3 disabled:opacity-50">{loading ? "Applying..." : "Get 3 months free →"}</button>
               </form>
             )}
           </div>
@@ -651,10 +652,10 @@ export default function LandingPage() {
     <div className="min-h-screen bg-[#0a0a0a]">
       <Navigation />
       <HeroSection />
+      <ComparisonSection />
       <HowItWorks />
       <LiveDemo />
       <UseCases />
-      <ComparisonSection />
       <EarlyAccessSection />
       <BackedBy />
       <TrustSection />
