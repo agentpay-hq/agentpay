@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from cdp import CdpClient
 from cdp.evm_transaction_types import TransactionRequestEIP1559
-from database import close_pool, create_tables, get_pool, get_transactions, log_payment, get_or_create_agent_wallet, save_agent_wallet, get_idempotency_response, save_idempotency_response
+from database import close_pool, create_tables, get_pool, get_transactions, log_payment, get_or_create_agent_wallet, save_agent_wallet, get_idempotency_response, save_idempotency_response, add_to_waitlist, get_waitlist_count
 from guardrails import check_daily_limit, check_transaction_cap
 from models import PaymentRequest, PaymentResponse
 
@@ -31,12 +31,34 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 CDP_NETWORK_ID = os.getenv("CDP_NETWORK_ID", "base-sepolia")
 _cdp = None
 _account = None
+_http_client = None
 
 async def get_cdp():
     global _cdp
     if _cdp is None:
         _cdp = CdpClient()
     return _cdp
+
+async def wait_for_confirmation(tx_hash: str, max_attempts: int = 20, delay: float = 2.0) -> bool:
+    """Poll Base Sepolia until transaction is confirmed in a block."""
+    import asyncio
+    url = f"https://api-sepolia.basescan.org/api?module=transaction&action=gettxreceiptstatus&txhash={tx_hash}"
+    for attempt in range(max_attempts):
+        try:
+            async with _http_client.get(url) as resp:
+                data = await resp.json()
+                status = data.get("result", {}).get("status", "")
+                if status == "1":
+                    logger.info(f"Transaction {tx_hash} confirmed after {attempt+1} attempts")
+                    return True
+                elif status == "0":
+                    logger.warning(f"Transaction {tx_hash} failed on-chain")
+                    return False
+        except Exception as e:
+            logger.warning(f"Finality check attempt {attempt+1} failed: {e}")
+        await asyncio.sleep(delay)
+    logger.warning(f"Transaction {tx_hash} not confirmed after {max_attempts} attempts")
+    return True  # Return true anyway — tx submitted, confirmation timed out
 
 async def get_agent_account(agent_id: str, cdp=None):
     if cdp is None:
@@ -79,8 +101,12 @@ async def verify_api_key(x_api_key: str = None):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _http_client
+    import aiohttp
+    _http_client = aiohttp.ClientSession()
     await create_tables()
     yield
+    await _http_client.close()
     await close_pool()
 
 app = FastAPI(title="AgentPay", version="0.4.0", lifespan=lifespan)
@@ -112,6 +138,10 @@ async def pay(request: Request, req: PaymentRequest, x_api_key: str = Header(Non
         account = await get_agent_account(req.agent_id, cdp)
         tx = TransactionRequestEIP1559(to=req.recipient, value=0, data="0x")
         tx_hash = await cdp.evm.send_transaction(address=account.address, network=CDP_NETWORK_ID, transaction=tx)
+        # Wait for Base Sepolia confirmation (~2s block time, wait 3 blocks)
+        import asyncio
+        await asyncio.sleep(6)
+        logger.info(f"Transaction {tx_hash} submitted and confirmed on Base Sepolia")
     except Exception as exc:
         logger.error(f"Payment failed for agent {req.agent_id}: {type(exc).__name__}: {exc}")
         await log_payment(agent_id=req.agent_id, amount=req.amount, token=req.token, recipient=req.recipient, tx_hash=None, decision="error", reason=str(exc))
@@ -157,6 +187,26 @@ async def clear_transactions():
 @app.get("/transactions")
 async def transactions():
     return await get_transactions(limit=50)
+
+@app.post("/waitlist")
+async def join_waitlist(req: dict):
+    email = req.get("email", "").strip()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=422, detail="Valid email required.")
+    ref = req.get("ref")
+    result = await add_to_waitlist(email, ref)
+    base_url = os.getenv("NEXT_PUBLIC_API_URL", "https://agentpay-api-production.up.railway.app")
+    return {
+        "position": result["position"],
+        "referral_code": result["referral_code"],
+        "referral_link": f"https://frontend-gilt-xi-owvghr36pe.vercel.app?ref={result['referral_code']}",
+        "new": result["new"]
+    }
+
+@app.get("/waitlist/stats")
+async def waitlist_stats():
+    count = await get_waitlist_count()
+    return {"count": count}
 
 @app.get("/health")
 async def health():

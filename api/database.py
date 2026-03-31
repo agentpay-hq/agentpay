@@ -65,6 +65,15 @@ async def create_tables() -> None:
             created_at  TIMESTAMPTZ DEFAULT NOW()
         )
     """)
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS waitlist (
+            id              SERIAL PRIMARY KEY,
+            email           TEXT NOT NULL UNIQUE,
+            referral_code   TEXT NOT NULL UNIQUE,
+            referred_by     TEXT,
+            created_at      TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
 
 
 async def get_or_create_agent_wallet(agent_id: str, network: str) -> dict:
@@ -153,3 +162,30 @@ async def save_idempotency_response(key: str, response: dict) -> None:
         """,
         key, json.dumps(response, default=serialize)
     )
+
+
+async def add_to_waitlist(email: str, referred_by: str | None = None) -> dict:
+    import secrets
+    pool = await get_pool()
+    code = secrets.token_urlsafe(6)
+    try:
+        row = await pool.fetchrow(
+            """
+            INSERT INTO waitlist (email, referral_code, referred_by)
+            VALUES ($1, $2, $3)
+            RETURNING id, referral_code
+            """,
+            email.lower().strip(), code, referred_by
+        )
+        count = await pool.fetchval("SELECT COUNT(*) FROM waitlist")
+        return {"new": True, "position": int(count), "referral_code": row["referral_code"]}
+    except Exception as e:
+        if "unique" in str(e).lower():
+            row = await pool.fetchrow("SELECT id, referral_code FROM waitlist WHERE email = $1", email.lower().strip())
+            count = await pool.fetchval("SELECT COUNT(*) FROM waitlist")
+            return {"new": False, "position": int(count), "referral_code": row["referral_code"]}
+        raise
+
+async def get_waitlist_count() -> int:
+    pool = await get_pool()
+    return int(await pool.fetchval("SELECT COUNT(*) FROM waitlist") or 0)
