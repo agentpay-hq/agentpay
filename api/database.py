@@ -75,6 +75,13 @@ async def create_tables() -> None:
         )
     """)
     await pool.execute("""
+        CREATE TABLE IF NOT EXISTS agent_webhooks (
+            agent_id    TEXT PRIMARY KEY,
+            url         TEXT NOT NULL,
+            updated_at  TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    await pool.execute("""
         CREATE TABLE IF NOT EXISTS agent_guardrails (
             agent_id            TEXT PRIMARY KEY,
             max_per_tx          NUMERIC,
@@ -281,3 +288,21 @@ async def get_agent_guardrails(agent_id: str):
         if not row:
             return None
         return dict(row)
+
+
+async def set_agent_webhook(agent_id: str, url: str) -> dict:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO agent_webhooks (agent_id, url, updated_at)
+            VALUES ($1, $2, NOW())
+            ON CONFLICT (agent_id) DO UPDATE SET url = EXCLUDED.url, updated_at = NOW()
+        """, agent_id, url)
+        row = await conn.fetchrow("SELECT * FROM agent_webhooks WHERE agent_id = $1", agent_id)
+        return dict(row)
+
+async def get_agent_webhook(agent_id: str) -> dict | None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM agent_webhooks WHERE agent_id = $1", agent_id)
+        return dict(row) if row else None

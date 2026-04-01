@@ -114,6 +114,26 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
+
+async def fire_webhook(agent_id: str, event: dict):
+    from database import get_agent_webhook
+    import asyncio
+    import aiohttp
+    wh = await get_agent_webhook(agent_id)
+    if not wh or not wh.get('url'):
+        return
+    url = wh['url']
+    for attempt in range(3):
+        try:
+            async with _http_client.post(url, json=event, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                if resp.status < 500:
+                    logger.info(f'Webhook fired to {url} — status {resp.status}')
+                    return
+        except Exception as e:
+            logger.warning(f'Webhook attempt {attempt+1} failed: {e}')
+        await asyncio.sleep(2 ** attempt)
+    logger.error(f'Webhook to {url} failed after 3 attempts')
+
 @app.post("/pay", response_model=PaymentResponse)
 @limiter.limit("60/minute")
 async def pay(request: Request, req: PaymentRequest, x_api_key: str = Header(None), idempotency_key: str = Header(None, alias="Idempotency-Key")):
@@ -159,6 +179,7 @@ async def pay(request: Request, req: PaymentRequest, x_api_key: str = Header(Non
         await log_payment(agent_id=req.agent_id, amount=req.amount, token=req.token, recipient=req.recipient, tx_hash=None, decision="error", reason=str(exc))
         raise HTTPException(status_code=502, detail="Transfer failed — please try again.")
     await log_payment(agent_id=req.agent_id, amount=req.amount, token=req.token, recipient=req.recipient, tx_hash=str(tx_hash), decision="approved", reason=req.reason)
+    await fire_webhook(req.agent_id, {"event": "payment.approved", "agent_id": req.agent_id, "amount": req.amount, "token": req.token, "recipient": req.recipient, "tx_hash": str(tx_hash), "reason": req.reason})
     response = PaymentResponse(tx_hash=str(tx_hash), status="approved", agent_id=req.agent_id, amount=req.amount, token=req.token, recipient=req.recipient, timestamp=now, reason=req.reason)
     if idempotency_key:
         await save_idempotency_response(idempotency_key, response.model_dump(mode="json"))
@@ -250,6 +271,25 @@ async def get_guardrails(agent_id: str, request: Request, x_api_key: str = Heade
     result = await get_agent_guardrails(agent_id)
     if not result:
         return {'agent_id': agent_id, 'max_per_tx': None, 'daily_limit': None, 'allowed_tokens': [], 'allowed_recipients': []}
+    return result
+
+@app.post('/agents/{agent_id}/webhook', tags=['webhooks'])
+async def set_webhook(agent_id: str, request: Request, body: dict, x_api_key: str = Header(None)):
+    await verify_api_key(x_api_key)
+    url = body.get('url', '').strip()
+    if not url or not url.startswith('http'):
+        raise HTTPException(status_code=400, detail='Valid webhook URL required.')
+    from database import set_agent_webhook
+    result = await set_agent_webhook(agent_id, url)
+    return result
+
+@app.get('/agents/{agent_id}/webhook', tags=['webhooks'])
+async def get_webhook(agent_id: str, request: Request, x_api_key: str = Header(None)):
+    await verify_api_key(x_api_key)
+    from database import get_agent_webhook
+    result = await get_agent_webhook(agent_id)
+    if not result:
+        return {'agent_id': agent_id, 'url': None}
     return result
 @app.post("/waitlist")
 async def join_waitlist(req: dict):
