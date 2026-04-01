@@ -306,3 +306,11 @@ async def get_agent_webhook(agent_id: str) -> dict | None:
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM agent_webhooks WHERE agent_id = $1", agent_id)
         return dict(row) if row else None
+
+
+async def get_agent_wallet_address(agent_id: str) -> str | None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT wallet_address FROM agent_wallets WHERE agent_id = $1", agent_id)
+        return row["wallet_address"] if row else None

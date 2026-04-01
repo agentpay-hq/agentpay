@@ -167,8 +167,15 @@ async def pay(request: Request, req: PaymentRequest, x_api_key: str = Header(Non
             raise HTTPException(status_code=403, detail="Recipient not allowed by guardrail policy.")
     try:
         cdp = await get_cdp()
+        from database import get_agent_wallet_address as _get_wallet
+        _resolved_recipient = req.recipient
+        if not req.recipient.startswith("0x"):
+            _resolved_recipient = await _get_wallet(req.recipient)
+            if not _resolved_recipient:
+                raise HTTPException(status_code=404, detail=f"Recipient agent not found or has no wallet.")
+            logger.info(f"Agent-to-agent: {req.agent_id} -> {req.recipient} ({_resolved_recipient})")
         account = await get_agent_account(req.agent_id, cdp)
-        tx = TransactionRequestEIP1559(to=req.recipient, value=0, data="0x")
+        tx = TransactionRequestEIP1559(to=_resolved_recipient, value=0, data="0x")
         tx_hash = await cdp.evm.send_transaction(address=account.address, network=CDP_NETWORK_ID, transaction=tx)
         # Wait for Base Sepolia confirmation (~2s block time, wait 3 blocks)
         import asyncio
