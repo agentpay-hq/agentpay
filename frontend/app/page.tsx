@@ -373,18 +373,39 @@ function ComparisonSection() {
 // ---------------------------------------------------------------------------
 function EarlyAccessSection() {
   const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+  const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !email.includes("@")) return;
+    if (!email || !email.includes("@")) { setError("Please enter a valid email."); return; }
+    if (!name.trim()) { setError("Please enter your name."); return; }
     setLoading(true);
+    setError(null);
     try {
-      await fetch(`${API}/waitlist`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
-      setSubmitted(true);
-    } catch { setSubmitted(true); }
+      const res = await fetch(`${API}/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), name: name.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Signup failed");
+      setApiKey(data.api_key);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      setError(msg.includes("already exists") ? "This email already has an account. Check your inbox for your API key." : msg);
+    }
     setLoading(false);
+  };
+
+  const copyKey = () => {
+    if (!apiKey) return;
+    navigator.clipboard.writeText(apiKey);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -395,19 +416,27 @@ function EarlyAccessSection() {
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-blue-400"><path d="M13 2L4.5 13.5H12L11 22L19.5 10.5H12L13 2Z" /></svg>
             </div>
-            <h3 className="text-2xl font-bold text-white">Early Access Program</h3>
+            <h3 className="text-2xl font-bold text-white">Get your API key</h3>
             <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-              AgentPay is in private beta. We&apos;re working with select teams to shape the product.
-              Apply for early access and get 3 months free on the Growth plan.
+              Free for 3 months. No credit card. Start making autonomous payments in 60 seconds.
             </p>
-            {submitted ? (
-              <div className="mt-6 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400">
-                Application received — we&apos;ll be in touch.
+            {apiKey ? (
+              <div className="mt-6 text-left">
+                <p className="mb-2 text-sm font-medium text-emerald-400">Your API key is ready. Save it — it won&apos;t be shown again.</p>
+                <div className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3">
+                  <code className="flex-1 truncate font-mono text-xs text-zinc-300">{apiKey}</code>
+                  <button onClick={copyKey} className="shrink-0 rounded px-3 py-1 text-xs font-medium transition-colors" style={{ background: copied ? "#1a3a2a" : "#1e293b", color: copied ? "#4ade80" : "#94a3b8" }}>
+                    {copied ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+                <p className="mt-4 text-xs text-zinc-500">Add this to your request headers: <code className="text-zinc-400">X-API-Key: {apiKey.slice(0, 12)}...</code></p>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" className="input flex-1 py-3" required />
-                <button type="submit" disabled={loading} className="btn btn-primary shrink-0 px-6 py-3 disabled:opacity-50">{loading ? "Applying..." : "Get 3 months free →"}</button>
+              <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-3">
+                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" className="input w-full py-3" required />
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" className="input w-full py-3" required />
+                {error && <p className="text-xs text-red-400">{error}</p>}
+                <button type="submit" disabled={loading} className="btn btn-primary w-full py-3 disabled:opacity-50">{loading ? "Creating your account..." : "Get 3 months free →"}</button>
               </form>
             )}
           </div>
