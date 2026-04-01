@@ -38,6 +38,15 @@ async def create_tables() -> None:
         )
     """)
     await pool.execute("""
+        CREATE TABLE IF NOT EXISTS accounts (
+            id              SERIAL PRIMARY KEY,
+            email           TEXT NOT NULL UNIQUE,
+            name            TEXT NOT NULL,
+            api_key_id      INTEGER REFERENCES api_keys(id),
+            created_at      TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    await pool.execute("""
         CREATE TABLE IF NOT EXISTS api_keys (
             id          SERIAL PRIMARY KEY,
             name        TEXT NOT NULL,
@@ -189,3 +198,47 @@ async def add_to_waitlist(email: str, referred_by: str | None = None) -> dict:
 async def get_waitlist_count() -> int:
     pool = await get_pool()
     return int(await pool.fetchval("SELECT COUNT(*) FROM waitlist") or 0)
+
+async def create_account(email: str, name: str) -> dict:
+    pool = await get_pool()
+    import secrets, hashlib
+    raw = f"ap_{secrets.token_hex(24)}"
+    hashed = hashlib.sha256(raw.encode()).hexdigest()
+    async with pool.acquire() as conn:
+        try:
+            row = await conn.fetchrow("""
+                INSERT INTO api_keys (name, key_hash, created_at)
+                VALUES ($1, $2, NOW())
+                RETURNING id, created_at
+            """, f"{name} — {email}", hashed)
+            await conn.execute("""
+                INSERT INTO accounts (email, name, api_key_id, created_at)
+                VALUES ($1, $2, $3, NOW())
+                ON CONFLICT (email) DO NOTHING
+            """, email.lower().strip(), name.strip(), row["id"])
+            existing = await conn.fetchrow(
+                "SELECT id FROM accounts WHERE email = $1",
+                email.lower().strip()
+            )
+            return {
+                "api_key": raw,
+                "email": email.lower().strip(),
+                "name": name.strip(),
+                "account_id": existing["id"],
+                "created_at": row["created_at"].isoformat()
+            }
+        except Exception as e:
+            raise Exception(f"Account creation failed: {e}")
+
+async def get_account_by_key(key_hash: str) -> dict | None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT a.id, a.email, a.name, a.created_at, k.id as key_id
+            FROM accounts a
+            JOIN api_keys k ON k.id = a.api_key_id
+            WHERE k.key_hash = $1
+        """, key_hash)
+        if not row:
+            return None
+        return dict(row)

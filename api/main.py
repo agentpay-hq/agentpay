@@ -2,7 +2,7 @@ import os, hashlib, logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from cdp import CdpClient
 from cdp.evm_transaction_types import TransactionRequestEIP1559
@@ -187,6 +187,40 @@ async def clear_transactions():
 @app.get("/transactions")
 async def transactions():
     return await get_transactions(limit=50)
+
+@app.post("/signup", tags=["onboarding"])
+@limiter.limit("10/minute")
+async def signup(request: Request, body: dict):
+    import hashlib
+    email = body.get("email", "").strip().lower()
+    name = body.get("name", "").strip()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Valid email required.")
+    if not name:
+        raise HTTPException(status_code=400, detail="Name required.")
+    try:
+        from database import create_account
+        result = await create_account(email, name)
+        logger.info(f"New account created: {email}")
+        return result
+    except Exception as e:
+        logger.error(f"Signup failed for {email}: {e}")
+        raise HTTPException(status_code=400, detail="Account already exists or signup failed.")
+
+@app.get("/me", tags=["onboarding"])
+async def get_me(request: Request, api_key: str = Depends(verify_api_key)):
+    import hashlib
+    from database import get_account_by_key
+    key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+    account = await get_account_by_key(key_hash)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found.")
+    return {
+        "email": account["email"],
+        "name": account["name"],
+        "account_id": account["id"],
+        "member_since": account["created_at"].isoformat() if account["created_at"] else None
+    }
 
 @app.post("/waitlist")
 async def join_waitlist(req: dict):
