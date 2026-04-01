@@ -208,10 +208,11 @@ async def signup(request: Request, body: dict):
         raise HTTPException(status_code=400, detail="Account already exists or signup failed.")
 
 @app.get("/me", tags=["onboarding"])
-async def get_me(request: Request, api_key: str = Depends(verify_api_key)):
+async def get_me(request: Request, x_api_key: str = Header(None)):
     import hashlib
     from database import get_account_by_key
-    key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+    await verify_api_key(x_api_key)
+    key_hash = hashlib.sha256(x_api_key.encode()).hexdigest()
     account = await get_account_by_key(key_hash)
     if not account:
         raise HTTPException(status_code=404, detail="Account not found.")
