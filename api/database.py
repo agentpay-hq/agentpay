@@ -75,6 +75,16 @@ async def create_tables() -> None:
         )
     """)
     await pool.execute("""
+        CREATE TABLE IF NOT EXISTS agent_guardrails (
+            agent_id            TEXT PRIMARY KEY,
+            max_per_tx          NUMERIC,
+            daily_limit         NUMERIC,
+            allowed_tokens      TEXT[] DEFAULT ARRAY[]::TEXT[],
+            allowed_recipients  TEXT[] DEFAULT ARRAY[]::TEXT[],
+            updated_at          TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    await pool.execute("""
         CREATE TABLE IF NOT EXISTS waitlist (
             id              SERIAL PRIMARY KEY,
             email           TEXT NOT NULL UNIQUE,
@@ -239,6 +249,35 @@ async def get_account_by_key(key_hash: str) -> dict | None:
             JOIN api_keys k ON k.id = a.api_key_id
             WHERE k.key_hash = $1
         """, key_hash)
+        if not row:
+            return None
+        return dict(row)
+
+
+async def set_agent_guardrails(agent_id: str, guardrails: dict) -> dict:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO agent_guardrails (agent_id, max_per_tx, daily_limit, allowed_tokens, allowed_recipients, updated_at)
+            VALUES ($1, $2, $3, $4, $5, NOW())
+            ON CONFLICT (agent_id) DO UPDATE SET
+                max_per_tx = EXCLUDED.max_per_tx,
+                daily_limit = EXCLUDED.daily_limit,
+                allowed_tokens = EXCLUDED.allowed_tokens,
+                allowed_recipients = EXCLUDED.allowed_recipients,
+                updated_at = NOW()
+        """, agent_id,
+            guardrails.get("max_per_tx"),
+            guardrails.get("daily_limit"),
+            guardrails.get("allowed_tokens", []),
+            guardrails.get("allowed_recipients", []))
+        return await get_agent_guardrails(agent_id)
+
+async def get_agent_guardrails(agent_id: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM agent_guardrails WHERE agent_id = $1", agent_id)
         if not row:
             return None
         return dict(row)

@@ -133,6 +133,18 @@ async def pay(request: Request, req: PaymentRequest, x_api_key: str = Header(Non
     if not daily["allowed"]:
         await log_payment(agent_id=req.agent_id, amount=req.amount, token=req.token, recipient=req.recipient, tx_hash=None, decision="rejected", reason=daily["reason"])
         return PaymentResponse(status="rejected", agent_id=req.agent_id, amount=req.amount, token=req.token, recipient=req.recipient, timestamp=now, reason=daily["reason"])
+    from database import get_agent_guardrails as _get_guardrails
+    _g = await _get_guardrails(req.agent_id)
+    if _g:
+        if _g.get("max_per_tx") and req.amount > float(_g["max_per_tx"]):
+            await log_payment(agent_id=req.agent_id, amount=req.amount, token=req.token, recipient=req.recipient, tx_hash=None, decision="rejected", reason=f"Exceeds max_per_tx guardrail")
+            raise HTTPException(status_code=403, detail=f'Amount {req.amount} exceeds guardrail limit of {_g["max_per_tx"]} per transaction.')
+        if _g.get("allowed_tokens") and req.token not in _g["allowed_tokens"]:
+            await log_payment(agent_id=req.agent_id, amount=req.amount, token=req.token, recipient=req.recipient, tx_hash=None, decision="rejected", reason=f"Token {req.token} not allowed")
+            raise HTTPException(status_code=403, detail=f"Token {req.token} not allowed by guardrail policy.")
+        if _g.get("allowed_recipients") and req.recipient not in _g["allowed_recipients"]:
+            await log_payment(agent_id=req.agent_id, amount=req.amount, token=req.token, recipient=req.recipient, tx_hash=None, decision="rejected", reason=f"Recipient not allowed")
+            raise HTTPException(status_code=403, detail="Recipient not allowed by guardrail policy.")
     try:
         cdp = await get_cdp()
         account = await get_agent_account(req.agent_id, cdp)
@@ -223,6 +235,22 @@ async def get_me(request: Request, x_api_key: str = Header(None)):
         "member_since": account["created_at"].isoformat() if account["created_at"] else None
     }
 
+
+@app.post('/agents/{agent_id}/guardrails', tags=['guardrails'])
+async def set_guardrails(agent_id: str, request: Request, body: dict, x_api_key: str = Header(None)):
+    await verify_api_key(x_api_key)
+    from database import set_agent_guardrails
+    result = await set_agent_guardrails(agent_id, body)
+    return result
+
+@app.get('/agents/{agent_id}/guardrails', tags=['guardrails'])
+async def get_guardrails(agent_id: str, request: Request, x_api_key: str = Header(None)):
+    await verify_api_key(x_api_key)
+    from database import get_agent_guardrails
+    result = await get_agent_guardrails(agent_id)
+    if not result:
+        return {'agent_id': agent_id, 'max_per_tx': None, 'daily_limit': None, 'allowed_tokens': [], 'allowed_recipients': []}
+    return result
 @app.post("/waitlist")
 async def join_waitlist(req: dict):
     email = req.get("email", "").strip()
