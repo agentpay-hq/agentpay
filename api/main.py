@@ -115,6 +115,42 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
+# ── Circuit breaker state for CDP calls ──
+import time as _time
+_cb_failures = 0
+_cb_open_until = 0.0
+_CB_THRESHOLD = 3       # failures before opening
+_CB_TIMEOUT   = 30.0    # seconds circuit stays open
+
+async def _cdp_with_circuit_breaker(coro):
+    """Wrap any CDP coroutine with circuit breaker + 8s timeout."""
+    global _cb_failures, _cb_open_until
+    import asyncio
+    now = _time.time()
+    if now < _cb_open_until:
+        raise HTTPException(status_code=503,
+            detail="Payment network temporarily unavailable. Please retry in 30 seconds.")
+    try:
+        result = await asyncio.wait_for(coro, timeout=8.0)
+        _cb_failures = 0          # success — reset counter
+        return result
+    except asyncio.TimeoutError:
+        _cb_failures += 1
+        if _cb_failures >= _CB_THRESHOLD:
+            _cb_open_until = _time.time() + _CB_TIMEOUT
+            logger.error(f"CDP circuit breaker OPEN — {_cb_failures} failures")
+        raise HTTPException(status_code=503,
+            detail="Payment network timed out. Please retry shortly.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        _cb_failures += 1
+        if _cb_failures >= _CB_THRESHOLD:
+            _cb_open_until = _time.time() + _CB_TIMEOUT
+            logger.error(f"CDP circuit breaker OPEN — {_cb_failures} failures")
+        raise
+
+
 async def fire_webhook(agent_id: str, event: dict):
     from database import get_agent_webhook
     import asyncio
@@ -177,7 +213,7 @@ async def pay(request: Request, req: PaymentRequest, x_api_key: str = Header(Non
             logger.info(f"Agent-to-agent: {req.agent_id} -> {req.recipient} ({_resolved_recipient})")
         account = await get_agent_account(req.agent_id, cdp)
         tx = TransactionRequestEIP1559(to=_resolved_recipient, value=0, data="0x")
-        tx_hash = await cdp.evm.send_transaction(address=account.address, network=CDP_NETWORK_ID, transaction=tx)
+        tx_hash = await _cdp_with_circuit_breaker(cdp.evm.send_transaction(address=account.address, network=CDP_NETWORK_ID, transaction=tx))
         # Wait for Base Sepolia confirmation (~2s block time, wait 3 blocks)
         import asyncio
         await asyncio.sleep(6)
