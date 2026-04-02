@@ -68,7 +68,7 @@ def main():
     print(f"{BOLD}{'═' * 60}{RESET}")
     print(f"  Agent:    {BLUE}{AGENT_ID}{RESET}")
     print(f"  Network:  Base Sepolia (testnet)")
-    print(f"  Guardrail: $200/tx maximum")
+    print(f"  Guardrail: $100/tx maximum")
     print(f"  API:      {API_URL}")
     print(f"{BOLD}{'═' * 60}{RESET}\n")
 
@@ -87,6 +87,7 @@ def main():
             "amount": amount,
             "token": "USDC",
             "recipient": WALLET,
+            "reason": description,
         }
 
         idempotency_key = f"demo-{AGENT_ID}-step{i}-{uuid.uuid4().hex[:8]}"
