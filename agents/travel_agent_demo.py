@@ -37,10 +37,10 @@ HEADERS = {
 
 # ── Payment sequence ─────────────────────────────────────────────────────────
 PAYMENTS = [
-    {"amount": 120.00, "description": "Hotel booking — Marriott Manila (3 nights)"},
+    {"amount": 85.00,  "description": "Hotel deposit — Seda BGC Manila"},
     {"amount": 15.50,  "description": "Grab taxi to NAIA Terminal 3"},
-    {"amount": 89.00,  "description": "Airport lounge access — Plaza Premium"},
-    {"amount": 340.00, "description": "Business class upgrade — PAL MNL→SIN"},  # will be blocked
+    {"amount": 75.00,  "description": "Airport lounge access — Plaza Premium"},
+    {"amount": 350.00, "description": "Business class upgrade — PAL MNL→SIN"},  # BLOCKED: over $100 cap
     {"amount": 45.00,  "description": "AXA travel insurance — 7 days"},
     {"amount": 22.00,  "description": "Airport transfer tip"},
 ]
