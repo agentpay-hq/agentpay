@@ -329,5 +329,5 @@ async def get_api_key_scope(raw_key: str) -> str | None:
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT scope FROM api_keys WHERE api_key = $1 AND revoked = FALSE", hashed)
+            "SELECT scope FROM api_keys WHERE key_hash = $1 AND is_active = TRUE", hashed)
         return row["scope"] if row else None
