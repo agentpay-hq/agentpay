@@ -234,7 +234,7 @@ async def create_account(email: str, name: str) -> dict:
                 INSERT INTO api_keys (name, key_hash, scope, created_at)
                 VALUES ($1, $2, $3, NOW())
                 RETURNING id, created_at
-            """, f"{name} — {email}", hashed, scope)
+            """, f"{name} — {email}", hashed, "pay")
             await conn.execute("""
                 INSERT INTO accounts (email, name, api_key_id, created_at)
                 VALUES ($1, $2, $3, NOW())
