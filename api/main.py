@@ -390,7 +390,7 @@ async def check_wallet_limit(api_key_raw: str, max_wallets: int = 10):
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT COUNT(*) as cnt FROM agent_wallets WHERE api_key_hash = $1", hashed)
+            "SELECT COUNT(*) as cnt FROM agent_wallets WHERE key_hash = $1", hashed)
         count = row["cnt"] if row else 0
     if count >= max_wallets:
         raise HTTPException(
