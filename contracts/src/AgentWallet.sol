@@ -61,7 +61,7 @@ contract AgentWallet is Ownable, Pausable, ReentrancyGuard {
     }
 
     // ──────────────────── Constructor ────────────────────
-    constructor(address _owner, address _operator) Ownable(_owner) {
+    constructor(address initialOwner, address _operator) Ownable(initialOwner) {
         if (_operator == address(0)) revert ZeroAddress();
         operator = _operator;
         emit OperatorUpdated(address(0), _operator);
@@ -220,6 +220,6 @@ contract AgentWallet is Ownable, Pausable, ReentrancyGuard {
     }
 
     function _currentDayStart() internal view returns (uint256) {
-        return (block.timestamp / 1 days) * 1 days;
+        return block.timestamp - (block.timestamp % 1 days);
     }
 }

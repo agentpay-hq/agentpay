@@ -175,6 +175,7 @@ async def fire_webhook(agent_id: str, event: dict):
 async def pay(request: Request, req: PaymentRequest, x_api_key: str = Header(None), idempotency_key: str = Header(None, alias="Idempotency-Key")):
     await verify_api_key(x_api_key)
     await require_scope(x_api_key, "pay")
+    await check_wallet_limit(x_api_key)
     if idempotency_key:
         cached = await get_idempotency_response(idempotency_key)
         if cached:

@@ -101,6 +101,12 @@ async def create_tables() -> None:
             created_at      TIMESTAMPTZ DEFAULT NOW()
         )
     """)
+    # Migrate existing DBs — add scope column if missing
+    try:
+        async with pool.acquire() as _mc:
+            await _mc.execute("ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS scope TEXT NOT NULL DEFAULT 'admin'")
+    except Exception:
+        pass
 
 
 async def get_or_create_agent_wallet(agent_id: str, network: str) -> dict:
