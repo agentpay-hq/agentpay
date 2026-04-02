@@ -138,6 +138,7 @@ async def fire_webhook(agent_id: str, event: dict):
 @limiter.limit("60/minute")
 async def pay(request: Request, req: PaymentRequest, x_api_key: str = Header(None), idempotency_key: str = Header(None, alias="Idempotency-Key")):
     await verify_api_key(x_api_key)
+    await require_scope(x_api_key, "pay")
     if idempotency_key:
         cached = await get_idempotency_response(idempotency_key)
         if cached:
@@ -181,10 +182,21 @@ async def pay(request: Request, req: PaymentRequest, x_api_key: str = Header(Non
         import asyncio
         await asyncio.sleep(6)
         logger.info(f"Transaction {tx_hash} submitted and confirmed on Base Sepolia")
+    except HTTPException:
+        raise
     except Exception as exc:
-        logger.error(f"Payment failed for agent {req.agent_id}: {type(exc).__name__}: {exc}")
-        await log_payment(agent_id=req.agent_id, amount=req.amount, token=req.token, recipient=req.recipient, tx_hash=None, decision="error", reason=str(exc))
-        raise HTTPException(status_code=502, detail="Transfer failed — please try again.")
+        err = str(exc)
+        logger.error(f"Payment failed for agent {req.agent_id}: {type(exc).__name__}: {err}")
+        await log_payment(agent_id=req.agent_id, amount=req.amount, token=req.token, recipient=req.recipient, tx_hash=None, decision="error", reason=err)
+        if "insufficient" in err.lower() or "balance" in err.lower():
+            raise HTTPException(status_code=402, detail="Insufficient funds in agent wallet.")
+        if "timeout" in err.lower() or "timed out" in err.lower():
+            raise HTTPException(status_code=503, detail="Payment network temporarily unavailable. Please retry.")
+        if "rate" in err.lower() or "limit" in err.lower():
+            raise HTTPException(status_code=429, detail="Rate limit exceeded. Please slow down.")
+        if "connect" in err.lower() or "network" in err.lower():
+            raise HTTPException(status_code=503, detail="Payment network temporarily unavailable. Please retry.")
+        raise HTTPException(status_code=422, detail="Payment could not be processed. Check request parameters.")
     await log_payment(agent_id=req.agent_id, amount=req.amount, token=req.token, recipient=req.recipient, tx_hash=str(tx_hash), decision="approved", reason=req.reason)
     await fire_webhook(req.agent_id, {"event": "payment.approved", "agent_id": req.agent_id, "amount": req.amount, "token": req.token, "recipient": req.recipient, "tx_hash": str(tx_hash), "reason": req.reason})
     response = PaymentResponse(tx_hash=str(tx_hash), status="approved", agent_id=req.agent_id, amount=req.amount, token=req.token, recipient=req.recipient, timestamp=now, reason=req.reason)
@@ -195,12 +207,15 @@ async def pay(request: Request, req: PaymentRequest, x_api_key: str = Header(Non
 @app.post("/keys")
 @limiter.limit("20/minute")
 async def create_key(request: Request, req: dict):
+    scope = req.get("scope", "admin").strip()
+    if scope not in ("read", "pay", "admin"):
+        raise HTTPException(status_code=400, detail="scope must be read, pay, or admin")
     import secrets
     raw = "ap_" + secrets.token_hex(24)
     h = hashlib.sha256(raw.encode()).hexdigest()
     db = await get_pool()
     async with db.acquire() as conn:
-        row = await conn.fetchrow("INSERT INTO api_keys (name, owner, key_hash, is_active, created_at) VALUES ($1,$2,$3,true,NOW()) RETURNING id, created_at", req.get("name","default"), req.get("owner",""), h)
+        row = await conn.fetchrow("INSERT INTO api_keys (name, owner, key_hash, scope, is_active, created_at) VALUES ($1,$2,$3,$4,true,NOW()) RETURNING id, created_at", req.get("name","default"), req.get("owner",""), h, scope)
     return {"key": raw, "id": row["id"], "name": req.get("name"), "message": "Store this key — shown once only"}
 
 @app.get("/keys")
@@ -317,6 +332,34 @@ async def join_waitlist(req: dict):
 async def waitlist_stats():
     count = await get_waitlist_count()
     return {"count": count}
+
+async def require_scope(api_key: str, required_scope: str):
+    """Raise 403 if key doesn't have required scope. Scope hierarchy: admin > pay > read."""
+    from database import get_api_key_scope
+    scope = await get_api_key_scope(api_key)
+    if scope is None:
+        raise HTTPException(status_code=401, detail="Invalid or revoked API key.")
+    hierarchy = {"read": 0, "pay": 1, "admin": 2}
+    if hierarchy.get(scope, -1) < hierarchy.get(required_scope, 999):
+        raise HTTPException(
+            status_code=403,
+            detail=f"This action requires '{required_scope}' scope. Your key has '{scope}' scope.")
+
+
+async def check_wallet_limit(api_key_raw: str, max_wallets: int = 10):
+    """Prevent wallet creation abuse — max 10 wallets per free tier key."""
+    import hashlib as _hl
+    hashed = _hl.sha256(api_key_raw.encode()).hexdigest()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT COUNT(*) as cnt FROM agent_wallets WHERE api_key_hash = $1", hashed)
+        count = row["cnt"] if row else 0
+    if count >= max_wallets:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Wallet limit reached ({max_wallets} max on free tier). Upgrade for more.")
+
 
 @app.get("/health")
 async def health():

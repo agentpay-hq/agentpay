@@ -51,6 +51,7 @@ async def create_tables() -> None:
             id          SERIAL PRIMARY KEY,
             name        TEXT NOT NULL,
             owner       TEXT DEFAULT '',
+            scope       TEXT NOT NULL DEFAULT 'admin',
             key_hash    TEXT NOT NULL UNIQUE,
             is_active   BOOLEAN DEFAULT true,
             created_at  TIMESTAMPTZ DEFAULT NOW(),
@@ -224,10 +225,10 @@ async def create_account(email: str, name: str) -> dict:
     async with pool.acquire() as conn:
         try:
             row = await conn.fetchrow("""
-                INSERT INTO api_keys (name, key_hash, created_at)
-                VALUES ($1, $2, NOW())
+                INSERT INTO api_keys (name, key_hash, scope, created_at)
+                VALUES ($1, $2, $3, NOW())
                 RETURNING id, created_at
-            """, f"{name} — {email}", hashed)
+            """, f"{name} — {email}", hashed, scope)
             await conn.execute("""
                 INSERT INTO accounts (email, name, api_key_id, created_at)
                 VALUES ($1, $2, $3, NOW())
@@ -314,3 +315,13 @@ async def get_agent_wallet_address(agent_id: str) -> str | None:
         row = await conn.fetchrow(
             "SELECT wallet_address FROM agent_wallets WHERE agent_id = $1", agent_id)
         return row["wallet_address"] if row else None
+
+async def get_api_key_scope(raw_key: str) -> str | None:
+    """Returns scope of key ('read','pay','admin') or None if invalid/revoked."""
+    import hashlib
+    hashed = hashlib.sha256(raw_key.encode()).hexdigest()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT scope FROM api_keys WHERE api_key = $1 AND revoked = FALSE", hashed)
+        return row["scope"] if row else None
