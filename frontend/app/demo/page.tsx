@@ -109,6 +109,7 @@ export default function DemoPage() {
             amount: step.amount,
             token: step.token,
             recipient: step.recipient,
+            reason: step.note,
           }),
         });
 
