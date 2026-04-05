@@ -7,14 +7,14 @@ import Navigation from "../components/Navigation";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://agentpay-api-production.up.railway.app";
 const DEMO_KEY = "ap_907442ab0bff3d79c30cdef85bf733a112ec16b547886456";
 
-// ── Demo scenario: AI travel agent with $200/tx guardrail ──
+// ── Demo scenario: AI travel agent with $100/tx guardrail ──
 const SCENARIO = [
-  { agent_id: "travel-agent-001", amount: 120.00, token: "USDC", recipient: "0x724481D8Fd17fCF2436078B98D84EdD69c053DDc", note: "Hotel booking — Marriott Manila" },
-  { agent_id: "travel-agent-001", amount: 15.50,  token: "USDC", recipient: "0x724481D8Fd17fCF2436078B98D84EdD69c053DDc", note: "Grab taxi to NAIA" },
-  { agent_id: "travel-agent-001", amount: 89.00,  token: "USDC", recipient: "0x724481D8Fd17fCF2436078B98D84EdD69c053DDc", note: "Airport lounge access" },
-  { agent_id: "travel-agent-001", amount: 340.00, token: "USDC", recipient: "0x724481D8Fd17fCF2436078B98D84EdD69c053DDc", note: "Business class upgrade — BLOCKED by guardrail" },
-  { agent_id: "travel-agent-001", amount: 45.00,  token: "USDC", recipient: "0x724481D8Fd17fCF2436078B98D84EdD69c053DDc", note: "Travel insurance" },
-  { agent_id: "travel-agent-001", amount: 22.00,  token: "USDC", recipient: "0x724481D8Fd17fCF2436078B98D84EdD69c053DDc", note: "Airport transfer tip" },
+  { agent_id: "travel-agent-096", amount: 85.00, token: "USDC", recipient: "0x724481D8Fd17fCF2436078B98D84EdD69c053DDc", note: "Hotel deposit — Seda BGC Manila" },
+  { agent_id: "travel-agent-096", amount: 15.50,  token: "USDC", recipient: "0x724481D8Fd17fCF2436078B98D84EdD69c053DDc", note: "Grab taxi to NAIA" },
+  { agent_id: "travel-agent-096", amount: 75.00,  token: "USDC", recipient: "0x724481D8Fd17fCF2436078B98D84EdD69c053DDc", note: "Airport lounge access — Plaza Premium" },
+  { agent_id: "travel-agent-096", amount: 350.00, token: "USDC", recipient: "0x724481D8Fd17fCF2436078B98D84EdD69c053DDc", note: "Business class upgrade — PAL MNL→SIN" },
+  { agent_id: "travel-agent-096", amount: 45.00,  token: "USDC", recipient: "0x724481D8Fd17fCF2436078B98D84EdD69c053DDc", note: "Travel insurance" },
+  { agent_id: "travel-agent-096", amount: 22.00,  token: "USDC", recipient: "0x724481D8Fd17fCF2436078B98D84EdD69c053DDc", note: "Airport transfer tip" },
 ];
 
 type TxResult = {
@@ -132,7 +132,7 @@ export default function DemoPage() {
         // Simulate: step 4 (index 3) is blocked, rest approved
         setTxs(prev => prev.map((tx, idx) =>
           idx < txs.length
-            ? { ...tx, status: idx === 3 ? "rejected" : "approved", reason: idx === 3 ? "Exceeds max_per_tx guardrail" : undefined }
+            ? { ...tx, status: idx === 3 ? "rejected" : "approved", reason: idx === 3 ? "Amount 350.0 exceeds per-transaction cap of 100.0 USDC" : undefined }
             : tx
         ));
       }
@@ -195,7 +195,7 @@ export default function DemoPage() {
                 AI Travel Agent — Manila Trip
               </h2>
               <p className="text-sm text-zinc-400 leading-relaxed">
-                An autonomous AI agent books a business trip to Manila. It has a <span className="text-white font-medium">$200/tx guardrail</span> set by its operator.
+                An autonomous AI agent books a business trip to Manila. It has a <span className="text-white font-medium">$100/tx guardrail</span> set by its operator.
                 Watch it autonomously approve hotel, taxi, and lounge bookings — then get <span className="text-red-400 font-medium">blocked</span> when it tries to upgrade to business class ($340).
               </p>
               <div className="mt-4 flex flex-wrap gap-2 text-xs text-zinc-500">
