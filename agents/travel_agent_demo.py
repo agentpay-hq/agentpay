@@ -27,7 +27,7 @@ from datetime import datetime
 # ── Config ──────────────────────────────────────────────────────────────────
 API_URL  = "https://agentpay-api-production.up.railway.app"
 API_KEY  = "ap_907442ab0bff3d79c30cdef85bf733a112ec16b547886456"
-AGENT_ID = "travel-agent-096"  # rotates daily to reset spend window
+AGENT_ID = "travel-agent-001"  # persistent — uses funded CDP wallet
 WALLET   = "0x724481D8Fd17fCF2436078B98D84EdD69c053DDc"  # Base Sepolia test wallet
 
 HEADERS = {
@@ -37,8 +37,8 @@ HEADERS = {
 
 # ── Payment sequence ─────────────────────────────────────────────────────────
 PAYMENTS = [
-    {"amount": 85.00,  "description": "Hotel deposit — Seda BGC Manila"},
     {"amount": 15.50,  "description": "Grab taxi to NAIA Terminal 3"},
+    {"amount": 85.00,  "description": "Hotel deposit — Seda BGC Manila"},
     {"amount": 75.00,  "description": "Airport lounge access — Plaza Premium"},
     {"amount": 350.00, "description": "Business class upgrade — PAL MNL→SIN"},  # BLOCKED: over $100 cap
     {"amount": 45.00,  "description": "AXA travel insurance — 7 days"},
