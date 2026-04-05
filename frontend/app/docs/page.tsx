@@ -118,7 +118,7 @@ function QuickStartTab() {
           <div className="mt-3">
             <CodeBlock
               language="bash"
-              code={`curl -X POST https://api.agentpay.xyz/keys \\
+              code={`curl -X POST https://agentpay-api-production.up.railway.app/keys \\
   -H "Content-Type: application/json" \\
   -d '{"name": "my-first-key"}'
 
@@ -144,7 +144,7 @@ function QuickStartTab() {
                 {
                   lang: "curl",
                   label: "curl",
-                  code: `curl -X POST https://api.agentpay.xyz/pay \\
+                  code: `curl -X POST https://agentpay-api-production.up.railway.app/pay \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: ap_YOUR_KEY_HERE" \\
   -d '{
@@ -161,7 +161,7 @@ function QuickStartTab() {
                   code: `import requests
 
 response = requests.post(
-    "https://api.agentpay.xyz/pay",
+    "https://agentpay-api-production.up.railway.app/pay",
     headers={"X-API-Key": "ap_YOUR_KEY_HERE"},
     json={
         "agent_id": "trading-bot-001",
@@ -176,7 +176,7 @@ print(response.json())`,
                 {
                   lang: "javascript",
                   label: "JavaScript",
-                  code: `const response = await fetch("https://api.agentpay.xyz/pay", {
+                  code: `const response = await fetch("https://agentpay-api-production.up.railway.app/pay", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
@@ -404,7 +404,7 @@ function ApiReferenceTab() {
           Complete reference for all AgentPay API endpoints.
         </p>
         <p className="mt-1 text-sm text-zinc-500">
-          Base URL: <code className="rounded bg-[#1a1a1a] px-1.5 py-0.5 text-xs text-blue-400">https://api.agentpay.xyz</code>
+          Base URL: <code className="rounded bg-[#1a1a1a] px-1.5 py-0.5 text-xs text-blue-400">https://agentpay-api-production.up.railway.app</code>
         </p>
       </div>
 

@@ -3,15 +3,15 @@
 AgentPay Demo — AI Travel Agent
 ================================
 An autonomous AI agent books a business trip to Manila.
-It has a $200/tx guardrail set by its operator.
+Guardrail: $100/tx maximum. Daily limit: $500/agent.
 
 Watch it:
-  ✓ Book hotel ($120)       → approved
-  ✓ Pay taxi ($15.50)       → approved
-  ✓ Book lounge ($89)       → approved
-  ✗ Upgrade to biz class    → BLOCKED by guardrail ($340 > $200 cap)
-  ✓ Buy travel insurance    → approved
-  ✓ Airport transfer tip    → approved
+  ✓ Hotel deposit ($85)     → approved
+  ✓ Grab taxi ($15.50)      → approved
+  ✓ Airport lounge ($75)    → approved
+  ✗ Biz class upgrade       → BLOCKED by guardrail ($350 > $100 cap)
+  ✓ Travel insurance ($45)  → approved
+  ✓ Airport tip ($22)       → approved
 
 Usage:
   pip install requests
@@ -27,7 +27,7 @@ from datetime import datetime
 # ── Config ──────────────────────────────────────────────────────────────────
 API_URL  = "https://agentpay-api-production.up.railway.app"
 API_KEY  = "ap_907442ab0bff3d79c30cdef85bf733a112ec16b547886456"
-AGENT_ID = "travel-agent-001"
+AGENT_ID = "travel-agent-096"  # rotates daily to reset spend window
 WALLET   = "0x724481D8Fd17fCF2436078B98D84EdD69c053DDc"  # Base Sepolia test wallet
 
 HEADERS = {
