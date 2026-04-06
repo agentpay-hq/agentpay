@@ -234,7 +234,7 @@ function AuthTab() {
             <CodeBlock
               language="http"
               code={`POST /pay HTTP/1.1
-Host: api.agentpay.xyz
+Host: agentpay-api-production.up.railway.app
 Content-Type: application/json
 X-API-Key: ap_a1b2c3d4e5f6...
 
