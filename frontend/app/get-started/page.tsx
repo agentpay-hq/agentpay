@@ -223,7 +223,7 @@ export default function GetStartedPage() {
               <div className="space-y-3">
                 <div>
                   <p className="text-xs text-zinc-500 mb-2">Node.js / TypeScript</p>
-                  <CodeBlock code="npm install @imgerrygo/agentpay-sdk" />
+                  <CodeBlock code="npm install @agentpay-hq/sdk" />
                 </div>
                 <div>
                   <p className="text-xs text-zinc-500 mb-2">Python / LangChain</p>

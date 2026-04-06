@@ -141,7 +141,7 @@ function ProductMockup() {
       <div className="rounded-xl border border-[#222222] bg-[#111111] shadow-[0_0_60px_rgba(59,130,246,0.08)]">
         <div className="flex items-center gap-2 border-b border-[#222222] px-4 py-2.5">
           <div className="h-3 w-3 rounded-full bg-[#333]" /><div className="h-3 w-3 rounded-full bg-[#333]" /><div className="h-3 w-3 rounded-full bg-[#333]" />
-          <span className="ml-2 text-xs text-zinc-600">agentpay.xyz/dashboard</span>
+          <span className="ml-2 text-xs text-zinc-600">agentpay-hq.com/dashboard</span>
           <span className="ml-auto text-[10px] text-zinc-600">live testnet data</span>
         </div>
         <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
@@ -510,7 +510,7 @@ function WaitlistSection() {
     setLoading(false);
   };
 
-  const referralLink = result ? `https://agentpay.xyz/ref/${result.referral_code}` : "";
+  const referralLink = result ? `https://agentpay-hq.com/ref/${result.referral_code}` : "";
   const tweetText = `Just joined the @agentpayhq waitlist — autonomous AI payments on Base. Get early access: ${referralLink}`;
 
   return (

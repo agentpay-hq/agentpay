@@ -1,0 +1,12 @@
+requests>=2.28
+pydantic>=2.0
+
+[all]
+langchain-core>=0.1
+aiohttp>=3.8
+
+[async]
+aiohttp>=3.8
+
+[langchain]
+langchain-core>=0.1

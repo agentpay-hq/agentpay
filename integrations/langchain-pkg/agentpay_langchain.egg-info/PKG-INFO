@@ -1,0 +1,72 @@
+Metadata-Version: 2.4
+Name: agentpay-langchain
+Version: 0.1.0
+Summary: LangChain tool for autonomous USDC payments via AgentPay
+Author-email: Gerry Go <hello@agentpay.xyz>
+License: MIT
+Project-URL: Homepage, https://frontend-gilt-xi-owvghr36pe.vercel.app
+Project-URL: Repository, https://github.com/agentpay-hq/agentpay
+Project-URL: Documentation, https://frontend-gilt-xi-owvghr36pe.vercel.app/docs
+Keywords: langchain,ai,payments,usdc,stablecoin,agents,web3
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.28
+Requires-Dist: pydantic>=2.0
+Provides-Extra: langchain
+Requires-Dist: langchain-core>=0.1; extra == "langchain"
+Provides-Extra: async
+Requires-Dist: aiohttp>=3.8; extra == "async"
+Provides-Extra: all
+Requires-Dist: langchain-core>=0.1; extra == "all"
+Requires-Dist: aiohttp>=3.8; extra == "all"
+
+# agentpay-langchain
+
+LangChain tool for autonomous USDC payments via AgentPay.
+
+## Install
+```bash
+pip install agentpay-langchain
+```
+
+## Usage
+```python
+from agentpay_langchain import AgentPayTool
+from langchain_openai import ChatOpenAI
+from langchain.agents import create_tool_calling_agent, AgentExecutor
+from langchain_core.prompts import ChatPromptTemplate
+
+# Get your free API key at https://agentpay.xyz/get-started
+tool = AgentPayTool(api_key="ap_...", agent_id="my-agent")
+
+llm = ChatOpenAI(model="gpt-4o")
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are an AI agent that can make USDC payments on behalf of users."),
+    ("human", "{input}"),
+    ("placeholder", "{agent_scratchpad}"),
+])
+
+agent = create_tool_calling_agent(llm, [tool], prompt)
+executor = AgentExecutor(agent=agent, tools=[tool], verbose=True)
+
+result = executor.invoke({"input": "Pay 10 USDC to 0xABC... for API access"})
+```
+
+## Features
+
+- Guardrails enforced on every payment (spend limits, velocity caps)
+- Full audit trail with on-chain tx hashes (BaseScan)
+- Idempotency keys to prevent duplicate payments
+- Async support via `_arun`
+- Works with any LangChain-compatible LLM
+
+## Get started
+
+1. Get a free API key at [agentpay.xyz/get-started](https://frontend-gilt-xi-owvghr36pe.vercel.app/get-started)
+2. Set `AGENTPAY_API_KEY=ap_...` or pass `api_key=` directly
+3. Configure guardrails via dashboard or API

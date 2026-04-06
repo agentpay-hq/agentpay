@@ -4,13 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-function LightningBolt() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="text-blue-500">
-      <path d="M13 2L4.5 13.5H12L11 22L19.5 10.5H12L13 2Z" fill="currentColor" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
-    </svg>
-  );
-}
 
 const NAV_LINKS = [
   { href: "/docs", label: "Docs" },

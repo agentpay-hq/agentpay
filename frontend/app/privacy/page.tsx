@@ -53,7 +53,7 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="mb-3 text-base font-semibold text-white">7. Contact</h2>
-            <p>For privacy-related inquiries, contact us at <a href="mailto:privacy@agentpay.xyz" className="text-blue-400 hover:text-blue-300">privacy@agentpay.xyz</a>.</p>
+            <p>For privacy-related inquiries, contact us at <a href="mailto:privacy@agentpay-hq.com" className="text-blue-400 hover:text-blue-300">privacy@agentpay-hq.com</a>.</p>
           </section>
         </div>
 

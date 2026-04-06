@@ -33,7 +33,7 @@ export default function TermsPage() {
 
           <section>
             <h2 className="mb-3 text-base font-semibold text-white">4. API Keys and Security</h2>
-            <p>You are responsible for safeguarding your API keys. Do not share keys publicly or commit them to version control. Notify us immediately at <a href="mailto:security@agentpay.xyz" className="text-blue-400 hover:text-blue-300">security@agentpay.xyz</a> if you believe a key has been compromised. We reserve the right to revoke keys that show signs of abuse.</p>
+            <p>You are responsible for safeguarding your API keys. Do not share keys publicly or commit them to version control. Notify us immediately at <a href="mailto:security@agentpay-hq.com" className="text-blue-400 hover:text-blue-300">security@agentpay-hq.com</a> if you believe a key has been compromised. We reserve the right to revoke keys that show signs of abuse.</p>
           </section>
 
           <section>
@@ -53,7 +53,7 @@ export default function TermsPage() {
 
           <section>
             <h2 className="mb-3 text-base font-semibold text-white">8. Contact</h2>
-            <p>Questions about these terms: <a href="mailto:legal@agentpay.xyz" className="text-blue-400 hover:text-blue-300">legal@agentpay.xyz</a></p>
+            <p>Questions about these terms: <a href="mailto:legal@agentpay-hq.com" className="text-blue-400 hover:text-blue-300">legal@agentpay-hq.com</a></p>
           </section>
         </div>
 
