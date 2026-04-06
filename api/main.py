@@ -391,3 +391,47 @@ async def check_wallet_limit(api_key_raw: str, max_wallets: int = 10):
 @app.get("/health")
 async def health():
     return {"status": "ok", "network": CDP_NETWORK_ID, "wallet_address": _account.address if _account else None, "version": app.version}
+
+# ── x402 Compliant Endpoints ──────────────────────────────────────────────
+from x402_middleware import x402_payment_required, verify_x402_payment, AGENT_PAY_WALLET
+
+@app.get('/x402/pay', tags=['x402'])
+async def x402_pay_endpoint(request: Request, x_payment: str = Header(None)):
+    """
+    x402-compliant payment endpoint.
+    Returns HTTP 402 with payment instructions if no X-PAYMENT header.
+    Verifies payment and applies AgentPay guardrails if X-PAYMENT provided.
+    """
+    if not x_payment:
+        return x402_payment_required(
+            resource=str(request.url),
+            amount_usdc=0.01,
+            description="AgentPay guardrailed payment — $0.01 USDC per request"
+        )
+    # Verify the payment
+    result = verify_x402_payment(x_payment, AGENT_PAY_WALLET, 10_000)  # max $0.01
+    if not result["valid"]:
+        return JSONResponse(status_code=402, content={"error": result["reason"]})
+    # Payment verified — apply guardrails and log
+    await log_payment(
+        agent_id=result["payment"].get("from", "x402-agent"),
+        amount=0.01,
+        token="USDC",
+        recipient=AGENT_PAY_WALLET,
+        tx_hash=result["payment"].get("txHash"),
+        decision="approved",
+        reason="x402 payment verified"
+    )
+    return {"status": "approved", "x402": True, "message": "Payment accepted"}
+
+@app.get('/x402/status', tags=['x402'])
+async def x402_status():
+    """x402 facilitator status — tells the ecosystem AgentPay is x402-ready."""
+    return {
+        "x402Version": 1,
+        "facilitator": "AgentPay",
+        "network": "base-sepolia",
+        "wallet": AGENT_PAY_WALLET,
+        "features": ["guardrails", "audit_trail", "spend_caps", "webhooks"],
+        "status": "active"
+    }
