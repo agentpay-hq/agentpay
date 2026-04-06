@@ -226,29 +226,58 @@ async def get_waitlist_count() -> int:
 async def create_account(email: str, name: str) -> dict:
     pool = await get_pool()
     import secrets, hashlib
-    raw = f"ap_{secrets.token_hex(24)}"
-    hashed = hashlib.sha256(raw.encode()).hexdigest()
+    email_clean = email.lower().strip()
+    name_clean = name.strip()
     async with pool.acquire() as conn:
         try:
+            # Check if account already exists — return existing key if so
+            existing = await conn.fetchrow(
+                """SELECT a.id, a.created_at, k.name as key_name
+                   FROM accounts a JOIN api_keys k ON a.api_key_id = k.id
+                   WHERE a.email = $1""",
+                email_clean
+            )
+            if existing:
+                # Account exists — generate a fresh key linked to this account
+                # (original key shown once at signup, this is a recovery key)
+                raw = f"ap_{secrets.token_hex(24)}"
+                hashed = hashlib.sha256(raw.encode()).hexdigest()
+                key_row = await conn.fetchrow("""
+                    INSERT INTO api_keys (name, key_hash, scope, created_at)
+                    VALUES ($1, $2, $3, NOW())
+                    RETURNING id, created_at
+                """, f"{name_clean} — {email_clean} (re-signup)", hashed, "pay")
+                await conn.execute("""
+                    UPDATE accounts SET api_key_id = $1 WHERE email = $2
+                """, key_row["id"], email_clean)
+                return {
+                    "api_key": raw,
+                    "email": email_clean,
+                    "name": name_clean,
+                    "account_id": existing["id"],
+                    "created_at": key_row["created_at"].isoformat(),
+                    "note": "Existing account — new key issued"
+                }
+            # New account — create key then account atomically
+            raw = f"ap_{secrets.token_hex(24)}"
+            hashed = hashlib.sha256(raw.encode()).hexdigest()
             row = await conn.fetchrow("""
                 INSERT INTO api_keys (name, key_hash, scope, created_at)
                 VALUES ($1, $2, $3, NOW())
                 RETURNING id, created_at
-            """, f"{name} — {email}", hashed, "pay")
+            """, f"{name_clean} — {email_clean}", hashed, "pay")
             await conn.execute("""
                 INSERT INTO accounts (email, name, api_key_id, created_at)
                 VALUES ($1, $2, $3, NOW())
-                ON CONFLICT (email) DO NOTHING
-            """, email.lower().strip(), name.strip(), row["id"])
-            existing = await conn.fetchrow(
-                "SELECT id FROM accounts WHERE email = $1",
-                email.lower().strip()
+            """, email_clean, name_clean, row["id"])
+            acc = await conn.fetchrow(
+                "SELECT id FROM accounts WHERE email = $1", email_clean
             )
             return {
                 "api_key": raw,
-                "email": email.lower().strip(),
-                "name": name.strip(),
-                "account_id": existing["id"],
+                "email": email_clean,
+                "name": name_clean,
+                "account_id": acc["id"],
                 "created_at": row["created_at"].isoformat()
             }
         except Exception as e:
